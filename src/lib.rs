@@ -8,40 +8,81 @@
 //! - Do we want to move to bootstrap2 so we can use a more modern AgentInfo?
 //! - Do we want to use generic loc, or hard-code u32?
 //! - Do we want to use generic crypto or hard-code ed25519?
+//! - Hashes should be
+//!     - displayed in debugging in the holochain canonical fmt
+//!       i.e. `uhCkblabla`
+//!     - any size to support other crypto schemes
+//!     - hashes cannot validate signatures... that fn in on info
+//!       again to support other crypto schemes
+//!
+//! ## Modularization Domains
+//!
+//! - "Agent" identity+crypto + online-ness (join)
+//! - Peer Store
+//! - Connectivity + Connection Blocking
+//! - Sharding / Arc Sizing aka authority domain or neighborhood management
+//! - Op Store
+//! - Gossip of op hashes loc-d within claimed authority
+//! - Publishing of op hashes loc-d within claimed authority
+//! - Fetching of op data
 
-use futures_util::future::BoxFuture;
+pub use std::io::Result;
 use std::sync::Arc;
 
-/// Kitsune2 result
-pub type Result<T> = std::io::Result<T>;
+use futures_util::future::BoxFuture;
 
-/// Kitsune2 agent (This is a type=String for the spike).
-pub type Agent = String;
-
-/// Kitsune2 peer url (This is a type=String for the spike).
-pub type PeerUrl = String;
-
-/// Kitsune2 location (This is a type=u32 for the spike).
+/// Kitsune2 location.
 pub type Loc = u32;
 
-/// Kitsune2 agent metadata.
-/// This is forshortened for the spike, but should also:
-/// - be cryptographically signed
-/// - include created at and expiration info
-/// - include a generic map for extendable data fields
-pub struct AgentInfo {
-    /// Kitsune2 agent.
-    pub agent: Agent,
-
-    /// Kitsune2 peer url.
-    pub url: PeerUrl,
-
-    /// Kitsune2 loc.
-    pub loc: Loc,
+/// Kitsune2 arq.
+pub trait Arq: 'static + Send + Sync + std::fmt::Debug {
+    /// Get the set of bounds that are included in this arc.
+    /// - If the arc is empty, the slice will be len zero.
+    /// - If the arc is full, the slice will be
+    ///   `[(Included(0), Included(u32::MAX))]`.
+    fn set_bounds(&self) -> &[(std::ops::Bound<Loc>, std::ops::Bound<Loc>)];
 }
 
+/// Trait-object version of Arq.
+pub type DynArq = Arc<dyn Arq + 'static + Send + Sync>;
+
+/// Kitsune2 hash.
+pub trait Hash:
+    'static + Send + Sync + std::fmt::Display + std::fmt::Debug
+{
+    /// Get the core/raw hash bytes without any prefix decoration or
+    /// location suffix.
+    fn hash_bytes(&self) -> &Vec<u8>;
+
+    /// Get the loc.
+    fn loc(&self) -> Loc;
+}
+
+/// Trait-object version of hash.
+pub type DynHash = Arc<dyn Hash + 'static + Send + Sync>;
+
+/// Kitsune2 peer url.
+pub type PeerUrl = String;
+
+/// Information about an agent.
+pub trait AgentInfo: 'static + Send + Sync + std::fmt::Debug {
+    /// Get the hash identifying this agent.
+    fn hash(&self) -> &DynHash;
+
+    /// Get the peer url of this agent.
+    fn peer_url(&self) -> PeerUrl;
+}
+
+/// Trait-object version of agent-info.
+pub type DynAgentInfo = Arc<dyn AgentInfo + 'static + Send + Sync>;
+
 /// A meta-op.
+#[derive(Debug)]
 pub struct MetaOp {
+    /// The op hash.
+    pub op_hash: DynHash,
+
+    /// The op
     /// The actual op data.
     pub op_data: Vec<u8>,
 
@@ -64,24 +105,24 @@ pub struct MetaOp {
 ///
 /// The in-memory store doesn't need its functions to be async,
 /// but we want to suport async stores in general.
-pub trait Kitsune2PeerStore: 'static + Send + Sync {
+pub trait Kitsune2PeerStore: 'static + Send + Sync + std::fmt::Debug {
     /// Inject agent_info from an external source (e.g. bootstrap).
     /// (May be ignored if it is expired, or we have a more recent version).
     fn ingest_agent_info_list(
         &self,
-        info: Vec<AgentInfo>,
+        info: Vec<DynAgentInfo>,
     ) -> BoxFuture<'_, Result<()>>;
 
     /// Pull an agent info if we have one.
-    fn get_agent(&self, agent: Agent) -> BoxFuture<'_, Option<AgentInfo>>;
+    fn get_agent(&self, agent: DynHash) -> BoxFuture<'_, Option<DynAgentInfo>>;
 
-    /// NOTE THIS IS FAKE, sharding is disabled, so we just get everyone.
-    /// We don't even know the datatype for representing arcs right now.
-    fn list_agents_for_arc(&self, arc: ()) -> BoxFuture<'_, Vec<AgentInfo>>;
+    /// List all the agents within the specified arc.
+    fn list_agents_for_arc(&self, arq: DynArq) -> BoxFuture<'_, Vec<DynAgentInfo>>;
 }
 
 /// Trait-object version of kitsune2 peer store.
-pub type DynKitsune2PeerStore = Arc<dyn Kitsune2PeerStore + Send + Sync>;
+pub type DynKitsune2PeerStore =
+    Arc<dyn Kitsune2PeerStore + 'static + Send + Sync>;
 
 /// The previous version of kitsune mixed these into the generic host api
 /// making it very difficult to abstract for testing.
@@ -89,17 +130,17 @@ pub type DynKitsune2PeerStore = Arc<dyn Kitsune2PeerStore + Send + Sync>;
 /// With this separated out, we can implement a simple memory store for
 /// testing that will be robust enough for simple small-scale production
 /// use, and can have binary import/export handles for manual persistence.
-pub trait Kitsune2OpStore: 'static + Send + Sync {
+pub trait Kitsune2OpStore: 'static + Send + Sync + std::fmt::Debug {
     /// Process incoming ops.
     fn ingest_op_list(&self, op_list: Vec<MetaOp>)
         -> BoxFuture<'_, Result<()>>;
 }
 
 /// Trait-object version of kitsune2 op store.
-pub type DynKitsune2OpStore = Arc<dyn Kitsune2OpStore + Send + Sync>;
+pub type DynKitsune2OpStore = Arc<dyn Kitsune2OpStore + 'static + Send + Sync>;
 
 /// Trait representing a kitsune2 endpoint.
-pub trait Kitsune2Endpoint: 'static + Send + Sync {
+pub trait Kitsune2Endpoint: 'static + Send + Sync + std::fmt::Debug {
     /// Get access to the peer store.
     fn peer_store(&self) -> &DynKitsune2PeerStore;
 
@@ -107,7 +148,7 @@ pub trait Kitsune2Endpoint: 'static + Send + Sync {
     fn op_store(&self) -> &DynKitsune2OpStore;
 
     /// Close a connection to a peer, if open.
-    fn close(&self, agent: Agent) -> BoxFuture<'_, ()>;
+    fn close(&self, agent: DynHash) -> BoxFuture<'_, ()>;
 
     /// Make a request of a peer, expecting a response. If we do not currently
     /// have an open connection to this peer, we will attempt to establish one.
@@ -139,22 +180,26 @@ pub trait Kitsune2Endpoint: 'static + Send + Sync {
     ///     to send requests to directly.
     fn request(
         &self,
-        agent: Agent,
+        agent: DynHash,
         data: Vec<u8>,
     ) -> BoxFuture<'_, Result<Vec<u8>>>;
 
     /// Get a list of currently connected peers.
-    fn connected_peers(&self) -> Vec<AgentInfo>;
+    fn connected_peers(&self) -> Vec<DynAgentInfo>;
 
     /// Attempt to discover a specific remote agent.
-    fn discover_agent(&self, agent: Agent) -> BoxFuture<'_, Result<AgentInfo>>;
+    fn discover_agent(
+        &self,
+        agent: DynHash,
+    ) -> BoxFuture<'_, Result<DynAgentInfo>>;
 
     /// Get a list of peers claiming authority over the provided location.
     fn discover_peers_for_loc(
         &self,
         loc: Loc,
-    ) -> BoxFuture<'_, Result<Vec<AgentInfo>>>;
+    ) -> BoxFuture<'_, Result<Vec<DynAgentInfo>>>;
 }
 
 /// Trait-object version of kitsune2 endpoint.
-pub type DynKitsune2Endpoint = Arc<dyn Kitsune2Endpoint + Send + Sync>;
+pub type DynKitsune2Endpoint =
+    Arc<dyn Kitsune2Endpoint + 'static + Send + Sync>;
