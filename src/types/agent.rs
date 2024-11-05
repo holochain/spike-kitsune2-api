@@ -14,10 +14,7 @@ pub trait Arq: 'static + Send + Sync + std::fmt::Debug {
 }
 
 /// Trait-object version of Arq.
-pub type DynArq = Arc<dyn Arq + 'static + Send + Sync>;
-
-/// Kitsune2 peer url.
-pub type PeerUrl = String;
+pub type DynArq = Arc<dyn Arq>;
 
 /// Information about an agent.
 pub trait AgentInfo: 'static + Send + Sync + std::fmt::Debug {
@@ -38,4 +35,16 @@ pub trait AgentInfo: 'static + Send + Sync + std::fmt::Debug {
 }
 
 /// Trait-object version of agent-info.
-pub type DynAgentInfo = Arc<dyn AgentInfo + 'static + Send + Sync>;
+pub type DynAgentInfo = Arc<dyn AgentInfo>;
+
+/// Additional api required to support local agents.
+pub trait LocalAgent: 'static + Send + Sync + std::fmt::Debug {
+    /// Get the hash identifying this local agent.
+    fn hash(&self) -> &DynHash;
+
+    /// Provide some data to be signed by this local agent.
+    fn sign(&self, data: &[u8]) -> Bytes;
+}
+
+/// Trait-object local agent.
+pub type DynLocalAgent = Arc<dyn LocalAgent>;
