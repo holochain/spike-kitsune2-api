@@ -18,64 +18,20 @@
 //! ## Modularization Domains
 //!
 //! - "Agent" identity+crypto + online-ness (join)
+//! - Space management
 //! - Peer Store
 //! - Connectivity + Connection Blocking
+//! - Bootstrapping
 //! - Sharding / Arc Sizing aka authority domain or neighborhood management
 //! - Op Store
 //! - Gossip of op hashes loc-d within claimed authority
 //! - Publishing of op hashes loc-d within claimed authority
 //! - Fetching of op data
+//! - Actual Kitsune, brining all of this together
 
-pub use std::io::Result;
-use std::sync::Arc;
+pub mod types;
 
-use futures_util::future::BoxFuture;
-
-/// Kitsune2 location.
-pub type Loc = u32;
-
-/// Kitsune2 arq.
-pub trait Arq: 'static + Send + Sync + std::fmt::Debug {
-    /// Get the set of bounds that are included in this arc.
-    /// - If the arc is empty, the slice will be len zero.
-    /// - If the arc is full, the slice will be
-    ///   `[(Included(0), Included(u32::MAX))]`.
-    fn set_bounds(&self) -> &[(std::ops::Bound<Loc>, std::ops::Bound<Loc>)];
-}
-
-/// Trait-object version of Arq.
-pub type DynArq = Arc<dyn Arq + 'static + Send + Sync>;
-
-/// Kitsune2 hash.
-pub trait Hash:
-    'static + Send + Sync + std::fmt::Display + std::fmt::Debug
-{
-    /// Get the core/raw hash bytes without any prefix decoration or
-    /// location suffix.
-    fn hash_bytes(&self) -> &Vec<u8>;
-
-    /// Get the loc.
-    fn loc(&self) -> Loc;
-}
-
-/// Trait-object version of hash.
-pub type DynHash = Arc<dyn Hash + 'static + Send + Sync>;
-
-/// Kitsune2 peer url.
-pub type PeerUrl = String;
-
-/// Information about an agent.
-pub trait AgentInfo: 'static + Send + Sync + std::fmt::Debug {
-    /// Get the hash identifying this agent.
-    fn hash(&self) -> &DynHash;
-
-    /// Get the peer url of this agent.
-    fn peer_url(&self) -> PeerUrl;
-}
-
-/// Trait-object version of agent-info.
-pub type DynAgentInfo = Arc<dyn AgentInfo + 'static + Send + Sync>;
-
+/*
 /// A meta-op.
 #[derive(Debug)]
 pub struct MetaOp {
@@ -117,7 +73,10 @@ pub trait Kitsune2PeerStore: 'static + Send + Sync + std::fmt::Debug {
     fn get_agent(&self, agent: DynHash) -> BoxFuture<'_, Option<DynAgentInfo>>;
 
     /// List all the agents within the specified arc.
-    fn list_agents_for_arc(&self, arq: DynArq) -> BoxFuture<'_, Vec<DynAgentInfo>>;
+    fn list_agents_for_arc(
+        &self,
+        arq: DynArq,
+    ) -> BoxFuture<'_, Vec<DynAgentInfo>>;
 }
 
 /// Trait-object version of kitsune2 peer store.
@@ -203,3 +162,4 @@ pub trait Kitsune2Endpoint: 'static + Send + Sync + std::fmt::Debug {
 /// Trait-object version of kitsune2 endpoint.
 pub type DynKitsune2Endpoint =
     Arc<dyn Kitsune2Endpoint + 'static + Send + Sync>;
+*/
