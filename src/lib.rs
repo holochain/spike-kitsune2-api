@@ -29,5 +29,23 @@
 //! - Fetching of op data
 //! - Actual Kitsune, brining all of this together
 
+use std::io::Result;
+use std::sync::Arc;
+
+use bytes::Bytes;
+
+// Using BoxFuture because even though async trait has been partially stablized
+// this is still the best/only way to get the bounds right and still be
+// compatible with trait-objects.
+use futures_util::future::BoxFuture;
+
+pub mod builder;
 pub mod config;
+pub mod mem;
 pub mod types;
+
+/// NOTE this module is NOT #[cfg(test)]!
+/// It contains test factories that are used in integration tests,
+/// and are useful outside of this crate. They are small, and if not
+/// used in production projects, will be eliminated by the rust compiler.
+pub mod test_factories;

@@ -29,3 +29,6 @@ pub trait Kitsune2: 'static + Send + Sync + std::fmt::Debug {
     /// a close reason first.
     fn close_peer(&self, peer_url: PeerUrl, reason: Option<String>);
 }
+
+/// Trait-object kitsune2.
+pub type DynKitsune2 = Arc<dyn Kitsune2>;

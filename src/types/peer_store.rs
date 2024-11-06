@@ -40,3 +40,18 @@ pub trait PeerStore: 'static + Send + Sync + std::fmt::Debug {
 
 /// Trait-object version of kitsune2 peer store.
 pub type DynPeerStore = Arc<dyn PeerStore>;
+
+/// A factory to create a new peer store.
+pub trait PeerStoreFactory: 'static + Send + Sync + std::fmt::Debug {
+    /// Config options for the concrete PeerStore type.
+    fn default_config(&self) -> &'static [crate::config::Config];
+
+    /// Construct a new transport instance.
+    fn create(
+        &self,
+        config: Arc<crate::config::ConfigMap>,
+    ) -> BoxFuture<'static, Result<DynPeerStore>>;
+}
+
+/// Trait-object peer store factory.
+pub type DynPeerStoreFactory = Arc<dyn PeerStoreFactory>;

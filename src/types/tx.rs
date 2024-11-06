@@ -65,13 +65,13 @@ pub type DynTx = Arc<dyn Tx>;
 
 /// A factory to create a new transport instance.
 pub trait TxFactory: 'static + Send + Sync + std::fmt::Debug {
-    /// Get a generic json config blob for this transport.
-    fn default_config(&self) -> crate::config::Config;
+    /// Config options for the concrete Tx type.
+    fn default_config(&self) -> &'static [crate::config::Config];
 
     /// Construct a new transport instance.
     fn create(
         &self,
-        config: Arc<crate::config::Config>,
+        config: Arc<crate::config::ConfigMap>,
         handler: DynTxHandler,
     ) -> BoxFuture<'static, Result<DynTx>>;
 }

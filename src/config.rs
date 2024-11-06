@@ -1,10 +1,8 @@
 //! Config
 
-use std::collections::{btree_map::Entry, BTreeMap};
-
 /// Config value.
 #[derive(Debug, Clone)]
-enum ConfigVal {
+pub enum ConfigVal {
     /// String.
     String(String),
 
@@ -50,55 +48,66 @@ impl ConfigVal {
     }
 }
 
-/// Kitsune2 generic configuration struct.
-#[derive(Debug)]
-pub struct Config(BTreeMap<String, ConfigVal>);
+/// A Kitsune2 configuration entry.
+#[derive(Debug, Clone)]
+pub struct Config {
+    /// A dot-separated configuration name. E.g. `tx.tx5.min-port`.
+    pub name: &'static str,
 
-impl Config {
-    /// Mix in defaults. Will not overwrite keys that already exist.
-    pub fn set_defaults(&mut self, oth: &Config) {
-        for (k, v) in oth.0.iter() {
-            if let Entry::Vacant(e) = self.0.entry(k.clone()) {
-                e.insert(v.clone());
+    /// An end-user oriented description of this config entry,
+    /// designed to be written as a comment in a configuration file.
+    /// E.g. "Set the lower bound on webrtc port usage".
+    pub desc: &'static str,
+
+    /// The current value associated with this configuration entry.
+    pub val: ConfigVal,
+}
+
+/// A full map of configuration entries.
+pub type ConfigMap = std::collections::BTreeMap<&'static str, Config>;
+
+/// Helper functions on config maps.
+pub trait ConfigMapExt {
+    /// Mixin defaults, only adding entries that don't exist.
+    fn mixin_defaults(&mut self, defaults: &[Config]);
+
+    /// Get a config value as a string.
+    fn to_string(&self, name: &str) -> String;
+
+    /// Get a config value as an integer.
+    fn to_integer(&self, name: &str) -> i64;
+
+    /// Get a config value as a float.
+    fn to_float(&self, name: &str) -> f64;
+}
+
+impl ConfigMapExt for ConfigMap {
+    fn mixin_defaults(&mut self, defaults: &[Config]) {
+        use std::collections::btree_map::Entry::*;
+        for config in defaults.iter() {
+            if let Vacant(e) = self.entry(config.name) {
+                e.insert(config.clone());
             }
         }
     }
 
-    /// Set string.
-    pub fn set_string(&mut self, key: String, val: String) {
-        self.0.insert(key, ConfigVal::String(val));
-    }
-
-    /// Get string.
-    pub fn get_string(&self, key: &str) -> String {
-        match self.0.get(key) {
-            Some(v) => v.to_string(),
+    fn to_string(&self, name: &str) -> String {
+        match self.get(name) {
+            Some(c) => c.val.to_string(),
             None => "".to_string(),
         }
     }
 
-    /// Set integer.
-    pub fn set_integer(&mut self, key: String, val: i64) {
-        self.0.insert(key, ConfigVal::Integer(val));
-    }
-
-    /// Get integer.
-    pub fn get_integer(&self, key: &str) -> i64 {
-        match self.0.get(key) {
-            Some(v) => v.to_integer(),
+    fn to_integer(&self, name: &str) -> i64 {
+        match self.get(name) {
+            Some(c) => c.val.to_integer(),
             None => 0,
         }
     }
 
-    /// Set float.
-    pub fn set_float(&mut self, key: String, val: f64) {
-        self.0.insert(key, ConfigVal::Float(val));
-    }
-
-    /// Get float.
-    pub fn get_float(&self, key: &str) -> f64 {
-        match self.0.get(key) {
-            Some(v) => v.to_float(),
+    fn to_float(&self, name: &str) -> f64 {
+        match self.get(name) {
+            Some(c) => c.val.to_float(),
             None => 0.0,
         }
     }
