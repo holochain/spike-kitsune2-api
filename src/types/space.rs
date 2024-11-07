@@ -3,13 +3,13 @@
 use crate::types::*;
 
 /// Handler for requests and events emitted by the space instance.
-pub trait SpaceHandler: 'static + Send + std::fmt::Debug {
+pub trait SpaceHandler: 'static + Send + Sync + std::fmt::Debug {
     /// A connection has sent us a request.
     /// Returning an Err result will close this connection.
     /// If you want to send an error back AS the response,
     /// please see the [Space::respond] api.
     fn incoming_request(
-        &mut self,
+        &self,
         peer: DynHash,
         req_id: Bytes,
         data: Bytes,
@@ -21,6 +21,9 @@ pub type DynSpaceHandler = Arc<dyn SpaceHandler>;
 
 /// Abstract kitsune2 space instance.
 pub trait Space: 'static + Send + Sync + std::fmt::Debug {
+    /// Get access to the peer store used by this space.
+    fn peer_store(&self) -> &peer_store::DynPeerStore;
+
     /// Join an agent to this space. If the agent is already joined,
     /// this is a no-op.
     fn agent_join(&self, agent: agent::DynLocalAgent);
@@ -88,9 +91,17 @@ pub type DynSpace = Arc<dyn Space>;
 
 /// A factory to create a new space instance.
 pub trait SpaceFactory: 'static + Send + Sync + std::fmt::Debug {
+    /// Config options for the concrete Tx type.
+    fn default_config(&self) -> &'static [crate::config::Config];
+
     /// Constructe a new space instance.
-    fn create(
+    fn create_instance(
         &self,
+        builder: Arc<crate::builder::Builder>,
         handler: DynSpaceHandler,
+        space: SpaceHash,
     ) -> BoxFuture<'static, Result<DynSpace>>;
 }
+
+/// Trait-object kitsune space factory.
+pub type DynSpaceFactory = Arc<dyn SpaceFactory>;

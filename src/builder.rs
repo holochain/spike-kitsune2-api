@@ -3,16 +3,23 @@
 use crate::types::*;
 use crate::*;
 
-use futures_util::future::BoxFuture;
-
 /// Kitsune2 builder.
 #[derive(Debug)]
 pub struct Builder {
+    /// The config map to be used by the resulting Kitsune2 instance.
+    pub config_map: config::ConfigMap,
+
     /// The transport factory.
     pub tx: tx::DynTxFactory,
 
     /// The peer store factory.
     pub peer_store: peer_store::DynPeerStoreFactory,
+
+    /// The kitsune factory.
+    pub kitsune: kitsune::DynKitsune2Factory,
+
+    /// The space factory.
+    pub space: space::DynSpaceFactory,
 }
 
 impl Builder {
@@ -22,9 +29,12 @@ impl Builder {
     /// factory with a real module that you are attempting to validate.
     pub fn new_testing() -> Self {
         Self {
-            tx: test_factories::tx::TestTxFactory::create(),
+            config_map: config::ConfigMap::new(),
+            tx: factories::TestTxFactory::create(),
             // The mem peer store is suitible for both testing and production.
-            peer_store: mem::peer_store::MemPeerStoreFactory::create(),
+            peer_store: factories::MemPeerStoreFactory::create(),
+            kitsune: factories::CoreKitsuneFactory::create(),
+            space: factories::CoreSpaceFactory::create(),
         }
     }
 
@@ -48,22 +58,28 @@ impl Builder {
     /// Use this with a blank ConfigMap to generate a default/example config.
     /// There is no need to manually call this before build, it will be run
     /// automatically.
-    pub fn mixin_defaults(&self, map: &mut config::ConfigMap) {
+    pub fn mixin_defaults(&mut self) {
         use crate::config::*;
 
-        map.mixin_defaults(self.tx.default_config());
-        map.mixin_defaults(self.peer_store.default_config());
+        self.config_map.mixin_defaults(self.tx.default_config());
+        self.config_map
+            .mixin_defaults(self.peer_store.default_config());
+        self.config_map
+            .mixin_defaults(self.kitsune.default_config());
+        self.config_map.mixin_defaults(self.space.default_config());
     }
 
     /// Build a kitsune2 instance.
     pub fn build(
-        self,
-        mut config: config::ConfigMap,
+        mut self,
+        handler: kitsune::DynKitsune2Handler,
     ) -> BoxFuture<'static, Result<kitsune::DynKitsune2>> {
         Box::pin(async move {
-            self.mixin_defaults(&mut config);
+            self.mixin_defaults();
 
-            todo!()
+            let kitsune = self.kitsune.clone();
+            let builder = Arc::new(self);
+            kitsune.create_instance(builder, handler).await
         })
     }
 }

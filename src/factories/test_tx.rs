@@ -57,7 +57,7 @@ impl tx::TxFactory for TestTxFactory {
     }
 
     /// Construct a new transport instance.
-    fn create(
+    fn create_instance(
         &self,
         _config: Arc<config::ConfigMap>,
         _handler: tx::DynTxHandler,

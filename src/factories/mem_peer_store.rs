@@ -3,22 +3,36 @@
 use crate::types::*;
 use crate::*;
 
+use std::collections::HashMap;
+
 /// Memory-backed peer store.
 #[derive(Debug)]
-struct MemPeerStore {}
+struct MemPeerStore {
+    store: std::sync::Mutex<HashMap<Bytes, agent::DynAgentInfo>>,
+}
 
 impl MemPeerStore {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            store: std::sync::Mutex::new(HashMap::new()),
+        }
     }
 }
 
 impl peer_store::PeerStore for MemPeerStore {
     fn ingest_agent_info_list(
         &self,
-        _info: Vec<types::agent::DynAgentInfo>,
+        info: Vec<agent::DynAgentInfo>,
     ) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async move { todo!() })
+        Box::pin(async move {
+            let mut lock = self.store.lock().unwrap();
+            for info in info {
+                let key = info.hash().hash_bytes().clone();
+                // TODO - expire and don't overwrite with older signed_at
+                lock.insert(key, info);
+            }
+            Ok(())
+        })
     }
 
     /// Pull an agent info if we have one.
@@ -56,9 +70,9 @@ impl peer_store::PeerStoreFactory for MemPeerStoreFactory {
     }
 
     /// Construct a new transport instance.
-    fn create(
+    fn create_instance(
         &self,
-        _config: Arc<config::ConfigMap>,
+        _builder: Arc<crate::builder::Builder>,
     ) -> BoxFuture<'static, Result<peer_store::DynPeerStore>> {
         Box::pin(async move {
             let out: peer_store::DynPeerStore = Arc::new(MemPeerStore::new());

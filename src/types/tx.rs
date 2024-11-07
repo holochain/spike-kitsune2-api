@@ -69,7 +69,7 @@ pub trait TxFactory: 'static + Send + Sync + std::fmt::Debug {
     fn default_config(&self) -> &'static [crate::config::Config];
 
     /// Construct a new transport instance.
-    fn create(
+    fn create_instance(
         &self,
         config: Arc<crate::config::ConfigMap>,
         handler: DynTxHandler,
